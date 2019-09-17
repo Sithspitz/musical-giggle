@@ -147,77 +147,45 @@ UMAP_plot <- ggplot(UMAP.plot, aes(x = x, y = y)) + coord_fixed(ratio = graphica
   theme_bw()
 
 # Run FlowSOM on the UMAP axes
-umap.data.mat <- as.matrix(umap.data)
+umap.matrix <- as.matrix(umap.data)
 
-metadata <-
-  data.frame(name = dimnames(umap.data.mat)[[2]],
-             desc = paste('t-SNE', dimnames(umap.data.mat)[[2]]))
-metadata$range <- apply(apply(umap.data.mat , 2, range), 2, diff)
-metadata$minRange <- apply(umap.data.mat , 2, min)
-metadata$maxRange <- apply(umap.data.mat , 2, max)
+metadata <-  data.frame(name = dimnames(umap.matrix)[[2]],
+             desc = paste('t-SNE', dimnames(umap.matrix)[[2]]))
+metadata$range <- apply(apply(umap.matrix , 2, range), 2, diff)
+metadata$minRange <- apply(umap.matrix , 2, min)
+metadata$maxRange <- apply(umap.matrix , 2, max)
 umap.flowframe <- new("flowFrame",
-                      exprs = umap.data.mat ,
+                      exprs = umap.matrix ,
                       parameters = AnnotatedDataFrame(metadata))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Run FlowSOM on the t-SNE axes
-tSNE.data.mat <- as.matrix(tSNE.data)
 
 # create flowFrame for FlowSOM input
-metadata <-
-  data.frame(name = dimnames(tSNE.data.mat)[[2]],
-             desc = paste('t-SNE', dimnames(tSNE.data.mat)[[2]]))
-metadata$range <- apply(apply(tSNE.data.mat , 2, range), 2, diff)
-metadata$minRange <- apply(tSNE.data.mat , 2, min)
-metadata$maxRange <- apply(tSNE.data.mat , 2, max)
-tSNE.flowframe <- new("flowFrame",
-                      exprs = tSNE.data.mat ,
-                      parameters = AnnotatedDataFrame(metadata))
+UMAP.metadata <-  data.frame(name = dimnames(umap.matrix)[[2]],
+             desc = paste('UMAP', dimnames(umap.matrix)[[2]]))
+UMAP.metadata$range <- apply(apply(umap.matrix, 2, range), 2, diff)
+UMAP.metadata$minRange <- apply(umap.matrix, 2, min)
+UMAP.metadata$maxRange <- apply(umap.matrix, 2, max)
+umap.flowframe <- new("flowFrame",
+                      exprs = umap.matrix,
+                      parameters = AnnotatedDataFrame(UMAP.metadata))
 
-# implement the FlowSOM on t-SNE axes with target number of clusters set at 7
-fSOM.t <-
-  FlowSOM(
-    tSNE.flowframe,        # input data has to be a flowframe
-    colsToUse = c(1:2),
-    xdim = 7,
-    ydim = 7,
-    nClus = 10,             # target number of clusters
-    seed = overall_seed
+# implement the FlowSOM on the data
+fsom <- FlowSOM(
+    umap.flowframe,      # input flowframe 
+    colsToUse = c(1:2),  # columns to use 
+    nClus = 6,          # target number of clusters 
+    seed = overall_seed  # set seed
   )
-tSNE.FlowSOM.clusters <-
-  as.matrix(fSOM.t[[2]][fSOM.t[[1]]$map$mapping[, 1]])
+FlowSOM.clusters <- as.matrix(fsom[[2]][fsom[[1]]$map$mapping[, 1]])
 
-# plot t-SNE with FlowSOM clusters
-ggplot(tSNE.plot) + coord_fixed(ratio = graphical.ratio.t) + 
-  geom_point(aes(x = x, y = y, color = tSNE.FlowSOM.clusters), cex = 1.5) + 
-  labs(x = "t-SNE 1", y = "t-SNE 2", title = "FlowSOM Clustering on t-SNE Axes", 
+# plot FlowSOM clusters on UMAP axes
+umap_flowsom_plot <- ggplot(UMAP.plot) + coord_fixed(ratio=graphical.ratio) + 
+  geom_point(aes(x=x, y=y, color=FlowSOM.clusters),cex = 1.5) + 
+  labs(x = "UMAP 1", y = "UMAP 2",title = "FlowSOM Clustering on UMAP Axes", 
        color = "FlowSOM Cluster") + theme_bw() + 
   guides(colour = guide_legend(override.aes = list(size=5)))
 
 # Run MEM on the FlowSOM clusters found using the t-SNE axes
-cluster <- as.numeric(as.vector((tSNE.FlowSOM.clusters)))
+cluster <- as.numeric(as.vector((FlowSOM.clusters)))
 MEMdata <- cbind(transformed.chosen.markers, cluster) 
 
 MEM.values.tf = MEM(
@@ -231,14 +199,14 @@ MEM.values.tf = MEM(
   # clusters 
   zero.ref = FALSE,
   rename.markers = FALSE,
-  new.marker.names = "TNFA, CD4, IL-17A, CD3, RORgT, IFNG",
+  new.marker.names = "TNFA, IL-17A, RORgT, IFNG",
   file.is.clust = FALSE,
   add.fileID = FALSE,
   IQR.thresh = NULL
 )
 
 # build MEM heatmap and output enrichment scores
-build.heatmaps(
+MEMheatmap <- build.heatmaps(
   MEM.values.tf,          # input MEM values
   cluster.MEM = "both",
   display.thresh = 1,
